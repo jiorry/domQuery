@@ -13,4 +13,7 @@ var q:DomQuery = DomQuery.New(dom);
 var a:DomQuery = q.find('#result');
 trace(a.attr('class'));
 
+a.find('a').each(function():void{
+	trace(this.getAttribute('href'));
+})
 ```

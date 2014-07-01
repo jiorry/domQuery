@@ -13,6 +13,13 @@ package
 			return d;
 		}
 		
+		public function each(func:Function):void{
+			for(var i:int=0;i<length;i++){
+				func.call(this[i])
+			}
+			
+		}
+		
 		public function get(i:int):Object{
 			return this[i];
 		}
@@ -85,7 +92,7 @@ package
 					for(k=0;k<arr2.length;k++){
 						clsNames.push(String(arr2[k]));
 					}
-					found = byClassNames(arr2[0], clsNames)
+					found = byClassNames(found, arr2[0], clsNames)
 				}
 			}
 			
@@ -104,7 +111,7 @@ package
 		
 		protected function allNodes():Array{
 			var i:int,
-				nodes:Array = [];
+			nodes:Array = [];
 			if(this.length==0){
 				for(i=0;i<dom.all.length;i++){
 					nodes.push(dom.all[i]);
@@ -117,25 +124,24 @@ package
 			return nodes;
 		}
 		
-		private function byClassNames(tag:String, classNames:Vector.<String>):Array{
+		private function byClassNames(nodes:Array, tag:String, classNames:Vector.<String>):Array{
 			if(tag==''){
 				tag = '*';
 			}
 			
-			var nodes:Array = allNodes(),
-				i:int,k:int,n:int,
-				arr:Object,
-				names:Array,
-				found:Array = [],
+			var i:int,k:int,n:int,
+			arr:Object,
+			names:Array,
+			found:Array = [],
 				isFound:Boolean = true;
-				
+			
 			for(i=0;i<nodes.length;i++){
 				arr = nodes[i].getElementsByTagName(tag);
 				for(k=0;k<arr.length;k++){
-					names = String(arr[k].classNames).split(' ');
+					names = String(arr[k].className).split(' ');
 					isFound= true;
 					for(n=0;n<names.length;n++){
-						isFound = isFound && arr[k].hasClassName(names[n]);
+						isFound = isFound && this.hasClassName(arr[k], names[n]);
 					}
 					if(!isFound)
 						continue;
@@ -143,8 +149,17 @@ package
 					found.push(arr[k]);
 				}
 			}
-				
+			
 			return found;
+		}
+		
+		private function hasClassName(node:Object, clas:String):Boolean{
+			if(node.hasClassName){
+				return node.hasClassName(clas)
+			}
+			
+			var arr:Array = String(node.className).split(' ');
+			return arr.indexOf(clas)>-1;
 		}
 		
 		public function getById(sid:String):DomQuery{
