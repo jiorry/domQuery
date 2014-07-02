@@ -17,7 +17,6 @@ package
 			for(var i:int=0;i<length;i++){
 				func.call(this[i])
 			}
-			
 		}
 		
 		public function get(i:int):Object{
@@ -74,25 +73,40 @@ package
 			return s
 		}
 		
+		protected function add(n:Object):void{
+			this[length] = n;
+			this.length += 1;
+		}
+		
+		protected function allNodes():Array{
+			var i:int,
+				nodes:Array = [];
+			if(this.length==0){
+				nodes.push(dom.body);
+			}else{
+				for(i=0;i<this.length;i++){
+					nodes.push(this[i]);
+				}
+			}
+			return nodes;
+		}
+		
 		public function find(selector:String):DomQuery{
 			var arr:Array = selector.split(' '),
-				found:Array = [],
+				found:Array = this.allNodes(),
 				i:int, k:int, 
+				m:Object,
 				s:String='',
-				arr2:Array,
-				clsNames:Vector.<String>;
+				sData:Object;
 			
 			for(i=0;i<arr.length;i++){
 				s = String(arr[i]);
 				if(s.charAt()=='#'){
-					found = [dom.getElementById(s.substr(1))];
+					m = /^#([\w\-]+)/g.exec(s);
+					found = [dom.getElementById(m[1])];
 				}else {
-					arr2 = s.split('.');
-					clsNames = new Vector.<String>();
-					for(k=0;k<arr2.length;k++){
-						clsNames.push(String(arr2[k]));
-					}
-					found = byClassNames(found, arr2[0], clsNames)
+					sData = parseSelector(s);
+					found = bySelector(found, sData.tag, sData.classNames, sData.attrs)
 				}
 			}
 			
@@ -104,44 +118,59 @@ package
 			return q;
 		}
 		
-		protected function add(n:Object):void{
-			this[length] = n;
-			this.length += 1;
-		}
-		
-		protected function allNodes():Array{
-			var i:int,
-			nodes:Array = [];
-			if(this.length==0){
-				for(i=0;i<dom.all.length;i++){
-					nodes.push(dom.all[i]);
-				}
-			}else{
-				for(i=0;i<this.length;i++){
-					nodes.push(this[i]);
-				}
+		protected function parseSelector(s:String):Object{
+			var m:Object = true,
+				tag:String='*',
+				classNames:Array = [],
+				attrs:Array = [],
+				reg:RegExp;
+			
+			m = /^(\w+)/g.exec(s);
+			if(m){
+				tag = m[1];
 			}
-			return nodes;
+			
+			reg = /\.([\w\-]+)/g;
+			do{
+				m = reg.exec(s);
+				if(m){
+					classNames.push(m[1]);
+				}
+			}while(m);
+			
+			reg = /\[(.+?)\]/g;
+			do{
+				m = reg.exec(s);
+				if(m){
+					attrs.push(m[1]);
+				}
+			}while(m);
+						
+			return {tag:tag, classNames:classNames, attrs:attrs};
 		}
 		
-		private function byClassNames(nodes:Array, tag:String, classNames:Vector.<String>):Array{
+		protected function bySelector(nodes:Array, tag:String, classNames:Array, attrs:Array):Array{
 			if(tag==''){
 				tag = '*';
 			}
 			
 			var i:int,k:int,n:int,
-			arr:Object,
-			names:Array,
-			found:Array = [],
+				arr:Object,
+				names:Array,
+				className:String,
+				found:Array = [],
 				isFound:Boolean = true;
-			
+				
 			for(i=0;i<nodes.length;i++){
 				arr = nodes[i].getElementsByTagName(tag);
 				for(k=0;k<arr.length;k++){
-					names = String(arr[k].className).split(' ');
 					isFound= true;
-					for(n=0;n<names.length;n++){
-						isFound = isFound && this.hasClassName(arr[k], names[n]);
+					
+					for(n=0;n<classNames.length;n++){
+						isFound = isFound && this.hasClassName(arr[k], classNames[n]);
+					}
+					for(n=0;n<attrs.length;n++){
+						isFound = isFound && this.attrEqual(arr[k], attrs[n]);
 					}
 					if(!isFound)
 						continue;
@@ -149,8 +178,23 @@ package
 					found.push(arr[k]);
 				}
 			}
-			
+				
 			return found;
+		}
+		
+		private function attrEqual(node:Object, s:String):Boolean{
+			if(!node.hasAttribute)
+				return false;
+			
+			var arr:Array = s.split('=');
+			if(!node.hasAttribute(arr[0])){
+				return false;
+			}
+			
+			if(arr.length>1){
+				return node.getAttribute(arr[0])==arr[1]
+			}
+			return true;
 		}
 		
 		private function hasClassName(node:Object, clas:String):Boolean{
