@@ -2,15 +2,119 @@ package
 {
 	public dynamic class DomQuery
 	{
-		public var dom:Object;
+		private var _dom:Object;
+		public function get dom():Object{
+			return _dom;
+		}
+		
+		private var _win:Object;
+		public function get window():Object{
+			return _win;
+		}
+		public function set window(v:Object):void{
+			_win = v;
+			if(v)
+				_dom = v['document'];
+		}
+		
 		public var length:int=0;
 		public function DomQuery(){
 		}
 		
-		public static function New(document:Object):DomQuery{
+		public static function New(win:Object):DomQuery{
 			var d:DomQuery = new DomQuery();
-			d.dom = document;
+			d.window = win;
 			return d;
+		}
+		
+		public function val(v:Object=null):String{
+			if(v){
+				switch(this[0].tagName){
+					case 'INPUT':
+						this[0].value = String(v);
+						break;
+					case 'TEXTAREA':
+						this[0].value.innerHTML = String(v);
+						break;
+				}
+				return String(v);
+			}
+			
+			switch(this[0].tagName){
+				case 'INPUT':
+					return String(this[0].value);
+				case 'TEXTAREA':
+					return String(this[0].innerHTML);
+			}
+			return '';
+		}
+		
+		public function parent():DomQuery{
+			var i:int,k:int,isSame:Boolean,
+				q:DomQuery = New(window),
+				nodes:Array = this.allNodes();
+			
+			for(i=0;i<nodes.length;i++){
+				isSame = false;
+				for(k=0;k<q.length;k++){
+					isSame = q[k].isSameNode(nodes[i].parentNode);
+					if(isSame)
+						break;
+				}
+				if(isSame)
+					continue;
+				
+				q.addNode(nodes[i].parentNode)
+			}
+
+			return q;
+		}
+		
+		public function next():DomQuery{
+			var i:int,k:int,isSame:Boolean,
+				q:DomQuery = New(window),
+				nodes:Array = allNodes();
+			
+			for(i=0;i<nodes.length;i++){
+				if(!nodes[i].nextElementSibling)
+					continue;
+				
+				isSame = false;
+				for(k=0;k<q.length;k++){
+					isSame = q[k].isSameNode(nodes[i].nextElementSibling);
+					if(isSame)
+						break;
+				}
+				if(isSame)
+					continue;
+				
+				q.addNode(nodes[i].nextElementSibling)
+			}
+			return q;
+		}
+		
+		public function prev():DomQuery{
+			var i:int,k:int,isSame:Boolean,
+			q:DomQuery = New(window),
+				nodes:Array = allNodes();
+			
+			for(i=0;i<nodes.length;i++){
+				if(!nodes[i].previousElementSibling)
+					continue;
+				
+				isSame = false;
+				for(k=0;k<q.length;k++){
+					isSame = q[k].isSameNode(nodes[i].previousElementSibling);
+					if(isSame)
+						break;
+				}
+				if(isSame)
+					continue;
+				
+				q.addNode(nodes[i].previousElementSibling)
+			}
+			
+			return q
 		}
 		
 		public function each(func:Function):void{
@@ -73,7 +177,7 @@ package
 			return s
 		}
 		
-		protected function add(n:Object):void{
+		protected function addNode(n:Object):void{
 			this[length] = n;
 			this.length += 1;
 		}
@@ -98,21 +202,25 @@ package
 				m:Object,
 				s:String='',
 				sData:Object;
-			
-			for(i=0;i<arr.length;i++){
-				s = String(arr[i]);
-				if(s.charAt()=='#'){
-					m = /^#([\w\-]+)/g.exec(s);
-					found = [dom.getElementById(m[1])];
-				}else {
-					sData = parseSelector(s);
-					found = bySelector(found, sData.tag, sData.classNames, sData.attrs)
+			try{
+				for(i=0;i<arr.length;i++){
+					s = String(arr[i]);
+					if(s.charAt()=='#'){
+						m = /^#([\w\-]+)/g.exec(s);
+						found = [dom.getElementById(m[1])];
+					}else {
+						sData = parseSelector(s);
+						found = bySelector(found, sData.tag, sData.classNames, sData.attrs, sData.func)
+					}
 				}
+			}catch(err){
+				return DomQuery.New(window);
 			}
 			
-			var q:DomQuery = DomQuery.New(this.dom);
+			
+			var q:DomQuery = DomQuery.New(this.window);
 			for(i=0;i<found.length;i++){
-				q.add(found[i]);
+				q.addNode(found[i]);
 			}
 			
 			return q;
@@ -123,6 +231,7 @@ package
 				tag:String='*',
 				classNames:Array = [],
 				attrs:Array = [],
+				func:Array = [],
 				reg:RegExp;
 			
 			m = /^(\w+)/g.exec(s);
@@ -145,11 +254,19 @@ package
 					attrs.push(m[1]);
 				}
 			}while(m);
+			
+			reg = /:(([\w\-]+)\(\d+\))/g;
+			do{
+				m = reg.exec(s);
+				if(m && ['eq','first','last'].indexOf(m[2])>-1){
+					func.push(m[1]);
+				}
+			}while(m);
 						
-			return {tag:tag, classNames:classNames, attrs:attrs};
+			return {tag:tag, classNames:classNames, attrs:attrs, func:func};
 		}
 		
-		protected function bySelector(nodes:Array, tag:String, classNames:Array, attrs:Array):Array{
+		protected function bySelector(nodes:Array, tag:String, classNames:Array, attrs:Array, func:Array):Array{
 			if(tag==''){
 				tag = '*';
 			}
@@ -177,12 +294,43 @@ package
 					
 					found.push(arr[k]);
 				}
+				
+			}
+			
+			for(n=0;n<func.length;n++){
+				found = this.execFunc(found, func[n]);
 			}
 				
 			return found;
 		}
 		
-		private function attrEqual(node:Object, s:String):Boolean{
+		protected function execFunc(found:Array, s:String):Array{
+			if(found.length==0)
+				return found;
+			
+			var reg:RegExp =/(.+)\((\d+)\)?/g,
+				m:Object = reg.exec(s);
+			
+			if(!m || m.length<2){
+				throw new Error('selector func '+s+' is failed.');
+			}
+			
+			switch(m[1]){
+				case 'eq':
+					var n:int = parseInt(m[2]);
+					if(found.length>n)
+						return [found[n]]
+					else
+						return [];
+				case 'first':
+					return [found[0]];
+				case 'last':
+					return [found[found.length-1]];
+			}
+				
+			return found;
+		}
+		protected function attrEqual(node:Object, s:String):Boolean{
 			if(!node.hasAttribute)
 				return false;
 			
@@ -197,7 +345,7 @@ package
 			return true;
 		}
 		
-		private function hasClassName(node:Object, clas:String):Boolean{
+		protected function hasClassName(node:Object, clas:String):Boolean{
 			if(node.hasClassName){
 				return node.hasClassName(clas)
 			}
@@ -206,9 +354,9 @@ package
 			return arr.indexOf(clas)>-1;
 		}
 		
-		public function getById(sid:String):DomQuery{
+		protected function getById(sid:String):DomQuery{
 			var node:Object = dom.getElementById(sid),
-				q:DomQuery = DomQuery.New(dom);
+				q:DomQuery = DomQuery.New(window);
 			if(node){
 				q.length = 1;
 				return q[0] = node;
