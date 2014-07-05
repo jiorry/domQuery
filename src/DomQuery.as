@@ -1,30 +1,29 @@
 package
 {
+	import mx.controls.HTML;
+	
 	public dynamic class DomQuery
 	{
-		private var _dom:Object;
+		
 		public function get dom():Object{
-			return _dom;
+			return browser.domWindow.document;
 		}
 		
-		private var _win:Object;
 		public function get window():Object{
-			return _win;
-		}
-		public function set window(v:Object):void{
-			_win = v;
-			if(v)
-				_dom = v['document'];
+			return browser.domWindow;
 		}
 		
 		public var length:int=0;
 		public function DomQuery(){
+			
 		}
 		
-		public static function New(win:Object):DomQuery{
-			var d:DomQuery = new DomQuery();
-			d.window = win;
-			return d;
+		public static var browser:HTML;
+		public static function SetBrowser(b:HTML):void{
+			browser = b
+		}
+		public static function New():DomQuery{
+			return new DomQuery();
 		}
 		
 		public function val(v:Object=null):String{
@@ -51,7 +50,7 @@ package
 		
 		public function parent():DomQuery{
 			var i:int,k:int,isSame:Boolean,
-				q:DomQuery = New(window),
+				q:DomQuery = New(),
 				nodes:Array = this.allNodes();
 			
 			for(i=0;i<nodes.length;i++){
@@ -72,7 +71,7 @@ package
 		
 		public function next():DomQuery{
 			var i:int,k:int,isSame:Boolean,
-				q:DomQuery = New(window),
+				q:DomQuery = New(),
 				nodes:Array = allNodes();
 			
 			for(i=0;i<nodes.length;i++){
@@ -95,7 +94,7 @@ package
 		
 		public function prev():DomQuery{
 			var i:int,k:int,isSame:Boolean,
-			q:DomQuery = New(window),
+			q:DomQuery = New(),
 				nodes:Array = allNodes();
 			
 			for(i=0;i<nodes.length;i++){
@@ -123,8 +122,20 @@ package
 			}
 		}
 		
-		public function get(i:int):Object{
+		public function getNode(i:int):Object{
+			if(i>this.length-1)
+				return null;
 			return this[i];
+		}
+		
+		public function get(i:int):DomQuery{
+			if(i>this.length-1)
+				return null;
+			
+			var q:DomQuery = New();
+			
+			q.addNode(this[i])
+			return q;
 		}
 		
 		public function data(name:String, val:Object=null):String{
@@ -177,9 +188,10 @@ package
 			return s
 		}
 		
-		protected function addNode(n:Object):void{
+		public function addNode(n:Object):DomQuery{
 			this[length] = n;
 			this.length += 1;
+			return this;
 		}
 		
 		protected function allNodes():Array{
@@ -193,6 +205,22 @@ package
 				}
 			}
 			return nodes;
+		}
+		
+		public static function $(o:*):DomQuery{
+			if(o is String){
+				return New().find(String(o));
+			}else if(o is Object){
+				return New().addNode(o);
+			}else if(o is Array){
+				var q:DomQuery = New();
+				for each(var item:Object in o){
+					q.addNode(item);
+				}
+				return q;
+			}else{
+				return New();
+			}
 		}
 		
 		public function find(selector:String):DomQuery{
@@ -213,12 +241,12 @@ package
 						found = bySelector(found, sData.tag, sData.classNames, sData.attrs, sData.func)
 					}
 				}
-			}catch(err){
-				return DomQuery.New(window);
+			}catch(err:Error){
+				return New();
 			}
 			
 			
-			var q:DomQuery = DomQuery.New(this.window);
+			var q:DomQuery = New();
 			for(i=0;i<found.length;i++){
 				q.addNode(found[i]);
 			}
@@ -356,10 +384,9 @@ package
 		
 		protected function getById(sid:String):DomQuery{
 			var node:Object = dom.getElementById(sid),
-				q:DomQuery = DomQuery.New(window);
+				q:DomQuery = New();
 			if(node){
-				q.length = 1;
-				return q[0] = node;
+				q.addNode(node);
 			}
 			
 			return q;

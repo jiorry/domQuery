@@ -7,13 +7,18 @@ Example
 ========
 
 ```
-var win:Object = htmlBrowser.domWindow;
-var dom:Object = win['document'];
-var q:DomQuery = DomQuery.New(dom);
-var a:DomQuery = q.find('#result');
+DomQuery.SetBrowser(htmlBrowser);
+
+var q:DomQuery = DomQuery.$('#result');
 trace(a.attr('class'));
 
-a.find('a').each(function():void{
+q.find('a').each(function():void{
+	trace(DomQuery.$(this).attr('href'));
 	trace(this.getAttribute('href'));
 })
+
+q.parent().next().prev().find('span[data-action=xxx]')
+
+q.find('div.item:eq(2)').html()
+
 ```
